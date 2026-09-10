@@ -22,10 +22,15 @@ jobs:
           go-version-file: "go.mod"
       - name: Run unit tests with coverage
         run: make test-unit
+      - name: Checksum coverage report
+        if: always()
+        run: sha256sum coverage.out > coverage.out.sha256
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-report
-          path: coverage.out
+          path: |
+            coverage.out
+            coverage.out.sha256
           retention-days: 14
