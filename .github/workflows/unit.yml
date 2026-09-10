@@ -1,3 +1,6 @@
+# Unit workflow: runs on every PR.
+# Validates: unit tests with envtest and -short flag.
+# Make target: make test-unit (part of make verify / make test-static)
 name: unit
 on:
   pull_request: {}
@@ -12,5 +15,14 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v6
         with:
+          cache: true
           go-version-file: "go.mod"
-      - run: make test-unit
+      - name: Run unit tests with coverage
+        run: make test-unit
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
+          retention-days: 14
