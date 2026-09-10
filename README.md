@@ -1,6 +1,6 @@
 # Ansible Operator Plugins
 
-[![sanity](https://github.com/operator-framework/ansible-operator-plugins/actions/workflows/test-sanity.yml/badge.svg)](https://github.com/operator-framework/ansible-operator-plugins/actions/workflows/test-sanity.yml) [![unit](https://github.com/operator-framework/ansible-operator-plugins/actions/workflows/unit.yml/badge.svg)](https://github.com/operator-framework/ansible-operator-plugins/actions/workflows/unit.yml)
+[![sanity](https://github.com/openshift/ansible-operator-plugins/actions/workflows/test-sanity.yml/badge.svg)](https://github.com/openshift/ansible-operator-plugins/actions/workflows/test-sanity.yml) [![unit](https://github.com/openshift/ansible-operator-plugins/actions/workflows/unit.yml/badge.svg)](https://github.com/openshift/ansible-operator-plugins/actions/workflows/unit.yml)
 
 A plugin that provides Ansible-based operator functionality for the [Operator SDK](https://github.com/operator-framework/operator-sdk). This project contains the core Ansible operator implementation that enables developers to build Kubernetes operators using Ansible playbooks and roles.
 

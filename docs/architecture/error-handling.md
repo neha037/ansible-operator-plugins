@@ -7,9 +7,27 @@ The `Reconcile` method returns `(reconcile.Result, error)` to controller-runtime
 1. **Not-found on initial Get is not an error.** Return `(Result{}, nil)` when
    `apierrors.IsNotFound(err)` on the primary resource fetch.
 
-2. **Always return `reconcileResult` (with `RequeueAfter`) alongside errors.**
-   When an error occurs mid-reconciliation, return the pre-computed
-   `reconcileResult` so the controller still requeues on the configured period.
+2. **The return value is branch-specific, not one universal rule.** Which
+   result/error pair is returned depends on where in `Reconcile` the error
+   originates:
+
+   | Branch | Returns |
+   |---|---|
+   | Initial `Client.Get` — not found | `reconcile.Result{}, nil` |
+   | Initial `Client.Get` — other error | `reconcile.Result{}, err` |
+   | Reconcile-period annotation parse, finalizer update, kubeconfig, or `Runner.Run` errors | `reconcileResult, err` (after attempting `markError`) |
+   | `markRunning` failure (`ManageStatus=true`) | `reconcileResult, errmark` |
+   | Event JSON marshal/unmarshal error | `reconcile.Result{}, err` (bypasses `reconcileResult`) |
+   | Post-run `APIReader.Get` — not found | `reconcile.Result{}, nil` |
+   | Post-run `APIReader.Get` — other error | `reconcile.Result{}, err` |
+   | Missing `playbook_on_stats` event | `reconcileResult, errors.New("did not receive playbook_on_stats event")` |
+   | `markDone` (`ManageStatus=true`), task failures present | `reconcileResult, errors.New("event runner on failed")` |
+   | `markDone` (`ManageStatus=true`), success | `reconcileResult, errmark` (the status-update error, if any) |
+   | `ManageStatus=false`, task failures present | `reconcileResult, errors.New("received failed task event")` |
+
+   Only the branches that call `markError`/`markRunning`/`markDone` use the
+   pre-computed `reconcileResult` (with `RequeueAfter`); the initial and
+   post-run API reads intentionally return a bare `reconcile.Result{}`.
 
 3. **Ansible run failures produce `errors.New` sentinel strings, not wrapped
    errors.** Two distinct messages:
@@ -41,6 +59,12 @@ Rules:
 - Log the status-update error separately if it fails.
 - `markError` calls `metrics.ReconcileFailed` immediately, so metrics are recorded even if the status update fails.
 - In `markError` and `markDone`, treat `apierrors.IsNotFound` as a no-op (resource was deleted).
+- **Exception:** `markRunning` does not follow the `err`/`errmark` pairing above.
+  There is no separate "original" error to preserve at that point in the flow,
+  so its own return value (`errmark`) is returned directly to controller-runtime
+  on failure. Similarly, on the successful path through `markDone`
+  (`ManageStatus=true`, no task failures), `errmark` is also returned directly
+  since there is no prior error to prioritize over it.
 
 ## Metric Panic Recovery
 

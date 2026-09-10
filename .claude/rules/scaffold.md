@@ -11,4 +11,4 @@ paths:
 - `pkg/` must never import `internal/`. The plugin scaffolding package is a public API consumed by downstream projects.
 - Scaffold output includes: Dockerfile, watches.yaml, Makefile, roles directory, molecule tests.
 - Pod security defaults: `runAsNonRoot`, `seccompProfile: RuntimeDefault`, drops all capabilities.
-- Validate after template changes: `make generate && git diff --exit-code`, then `make verify`.
+- Validate after template changes: run `make generate`, review the intended output with `git diff -- testdata/` (a diff here is expected for a real template change, not a failure), commit the template and generated-output changes together, then run `make verify`.

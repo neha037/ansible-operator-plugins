@@ -1,7 +1,7 @@
 # Ansible Operator Plugins - Agentic Documentation
 
 **Component**: Ansible Operator Plugins (AOP)
-**Repository**: operator-framework/ansible-operator-plugins
+**Repository**: openshift/ansible-operator-plugins (downstream mirror of operator-framework/ansible-operator-plugins)
 
 > **AI agents**: Read `docs/domain/` first for API contracts and watches.yaml schema,
 > then `docs/architecture/` for reconcile/runner/proxy implementation patterns.

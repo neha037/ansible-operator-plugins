@@ -43,11 +43,12 @@ make verify
 
 - Template directory: `pkg/plugins/ansible/v1/scaffolds/internal/templates/`
 - Plugin entry point: `pkg/plugins/ansible/v1/init.go`
-- Generated samples: `testdata/ansible/memcached-operator/`
+- Generated samples: `testdata/memcached-molecule-operator/`
 
 ## Validation
 
 ```bash
-make generate && git diff --exit-code testdata/
+make generate
+git diff -- testdata/    # review the generated diff; expected for intended template changes
 make verify
 ```

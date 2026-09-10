@@ -6,9 +6,10 @@ Accepted
 
 ## Context
 
-This repository (`operator-framework/ansible-operator-plugins`) serves as the
-upstream source for the Ansible operator. OpenShift maintains a downstream fork
-at `openshift/ansible-operator-plugins` that adds an independent build overlay,
+This repository (`openshift/ansible-operator-plugins`) is the downstream mirror
+of the upstream Ansible operator source at
+`operator-framework/ansible-operator-plugins`. The root tree mirrors upstream
+unmodified; the `openshift/` directory adds an independent build overlay,
 downstream-only dependencies, and Ansible collections. The two trees must stay
 synchronized without polluting each other's histories.
 
@@ -18,7 +19,7 @@ The `openshift/` directory at the root of this repository contains the
 downstream overlay as a self-contained subtree with its own `go.mod`,
 `vendor/`, `Makefile`, and `Dockerfile`. This allows:
 
-1. The upstream repository to remain clean of OpenShift-specific build concerns.
+1. The root tree to remain a clean mirror of upstream, free of OpenShift-specific build concerns.
 2. Downstream maintainers to rebase from upstream tags using
    `openshift/hack/rebase_upstream.sh`.
 3. Commits introduced during rebase to use the `UPSTREAM: <carry|drop>:`

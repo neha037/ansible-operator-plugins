@@ -29,13 +29,13 @@ via a Unix-domain-socket HTTP API, and updates the CR's status conditions.
 
 ## Reconciliation Loop (internal/ansible/controller/reconcile.go)
 
-12. The reconciler uses `APIReader` (direct API reads, bypassing cache) for status updates to prevent stale writes.
+12. `APIReader` (direct API reads, bypassing cache) is used in two places: `markRunning`/`markError`/`markDone` call it to refresh the object immediately before `Client.Status().Update`, and after `Runner.Run` completes the reconciler calls it again to re-read the CR from the API server (ansible may have modified it via the proxy during the run).
 13. Per-CR reconcile period override: annotate with `ansible.sdk.operatorframework.io/reconcile-period: <duration>`.
 14. Finalizer lifecycle: added on first reconcile if configured, removed only after a successful finalizer run on deletion.
 15. If the CR has no `spec`, an empty map is injected so ansible parameters work for Secrets/ConfigMaps.
 16. The `requeue_after` module in ansible overrides `RequeueAfter` when detected from event data.
 17. Failed tasks (`runner_on_failed`) that are neither `IgnoreError()` nor `Rescued()` produce failure messages.
-18. The reconciler expects a `playbook_on_stats` event as the final event. If missing, reconciliation fails.
+18. A `playbook_on_stats` event must be present somewhere in the event stream (it is recorded as it is seen, then checked after the stream closes). If missing, reconciliation fails.
 
 ## Status Management (internal/ansible/controller/status/)
 
