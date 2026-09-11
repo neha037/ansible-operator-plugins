@@ -99,6 +99,8 @@ func ImplementMemcachedMolecule(sample sample.Sample, image string) {
 	pkg.CheckError("replacing the watches file", err)
 
 	log.Info("removing molecule test for the Secret since it is a core type")
+	// #nosec G204 -- sample.Dir() is an internally generated codegen output path,
+	// not attacker-reachable.
 	cmd := exec.Command("rm", "-rf", filepath.Join(sample.Dir(), "molecule", "default", "tasks", "secret_test.yml"))
 	_, err = sample.CommandContext().Run(cmd)
 	pkg.CheckError("removing secret test file", err)
@@ -116,7 +118,7 @@ func ImplementMemcachedMolecule(sample sample.Sample, image string) {
 	// prevent high load of controller caused by watching all the secrets in the cluster
 	watchNamespacePatchFileName := "watch_namespace_patch.yaml"
 	log.Info("adding WATCH_NAMESPACE env patch to watch own namespace")
-	err = os.WriteFile(filepath.Join(sample.Dir(), "config", "testing", watchNamespacePatchFileName), []byte(watchNamespacePatch), 0644)
+	err = os.WriteFile(filepath.Join(sample.Dir(), "config", "testing", watchNamespacePatchFileName), []byte(watchNamespacePatch), 0600)
 	pkg.CheckError("adding watch_namespace_patch.yaml", err)
 
 	log.Info("adding WATCH_NAMESPACE env patch to patch list to be applied")

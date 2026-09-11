@@ -147,41 +147,57 @@ func addMocksFromTestdata(dir string, cc command.CommandContext) {
 	testDataAbsPath, err := filepath.Abs("hack/generate/samples/ansible/testdata")
 	pkg.CheckError("absolute path for testdata", err)
 	log.Info("adding ansible.cfg")
+	// #nosec G204 -- testDataAbsPath is a fixed repo-relative path and dir is
+	// internally generated; this is codegen tooling, not attacker-reachable.
 	cmd := exec.Command("cp", filepath.Join(testDataAbsPath, "ansible.cfg"), dir)
 	_, err = cc.Run(cmd)
 	pkg.CheckError("adding ansible.cfg", err)
 
 	log.Info("adding plugins/")
+	// #nosec G204 -- testDataAbsPath is a fixed repo-relative path and dir is
+	// internally generated; this is codegen tooling, not attacker-reachable.
 	cmd = exec.Command("cp", "-r", filepath.Join(testDataAbsPath, "plugins/"), filepath.Join(dir, "plugins/"))
 	_, err = cc.Run(cmd)
 	pkg.CheckError("adding plugins/", err)
 
 	log.Info("adding fixture_collection/")
+	// #nosec G204 -- testDataAbsPath is a fixed repo-relative path and dir is
+	// internally generated; this is codegen tooling, not attacker-reachable.
 	cmd = exec.Command("cp", "-r", filepath.Join(testDataAbsPath, "fixture_collection/"), filepath.Join(dir, "fixture_collection/"))
 	_, err = cc.Run(cmd)
 	pkg.CheckError("adding fixture_collection/", err)
 
 	log.Info("replacing watches.yaml")
+	// #nosec G204 -- testDataAbsPath is a fixed repo-relative path and dir is
+	// internally generated; this is codegen tooling, not attacker-reachable.
 	cmd = exec.Command("cp", "-r", filepath.Join(testDataAbsPath, "watches.yaml"), dir)
 	_, err = cc.Run(cmd)
 	pkg.CheckError("replacing watches.yaml", err)
 
 	log.Info("adding tasks/")
+	// #nosec G204 -- testDataAbsPath is a fixed repo-relative path and dir is
+	// internally generated; this is codegen tooling, not attacker-reachable.
 	cmd = exec.Command("cp", "-r", filepath.Join(testDataAbsPath, "tasks/"), filepath.Join(dir, "molecule/default/"))
 	_, err = cc.Run(cmd)
 	pkg.CheckError("adding tasks/", err)
 
 	log.Info("adding secret playbook")
+	// #nosec G204 -- testDataAbsPath is a fixed repo-relative path and dir is
+	// internally generated; this is codegen tooling, not attacker-reachable.
 	cmd = exec.Command("cp", "-r", filepath.Join(testDataAbsPath, "secret.yml"), filepath.Join(dir, "playbooks/secret.yml"))
 	_, err = cc.Run(cmd)
 	pkg.CheckError("adding secret playbook", err)
 
 	log.Info("adding inventory/")
+	// #nosec G204 -- testDataAbsPath is a fixed repo-relative path and dir is
+	// internally generated; this is codegen tooling, not attacker-reachable.
 	cmd = exec.Command("cp", "-r", filepath.Join(testDataAbsPath, "inventory/"), filepath.Join(dir, "inventory/"))
 	_, err = cc.Run(cmd)
 	pkg.CheckError("adding inventory/", err)
 
 	log.Info("adding finalizer for finalizerconcurrencytest")
+	// #nosec G204 -- testDataAbsPath is a fixed repo-relative path and dir is
+	// internally generated; this is codegen tooling, not attacker-reachable.
 	cmd = exec.Command("cp", filepath.Join(testDataAbsPath, "/playbooks/finalizerconcurrencyfinalizer.yml"), filepath.Join(dir, "playbooks/finalizerconcurrencyfinalizer.yml"))
 	_, err = cc.Run(cmd)
 	pkg.CheckError("adding finalizer for finalizerconccurencytest", err)

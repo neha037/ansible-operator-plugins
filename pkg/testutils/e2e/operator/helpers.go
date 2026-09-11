@@ -12,6 +12,7 @@ import (
 
 // BuildOperatorImage will build an operator image by running `make docker-build IMG=<image>`
 func BuildOperatorImage(sample sample.Sample, image string) error {
+	// #nosec G204 -- image is supplied by the calling test's own code, not external/untrusted input.
 	cmd := exec.Command("make", "docker-build", "IMG="+image)
 	_, err := sample.CommandContext().Run(cmd, sample.Name())
 	if err != nil {
@@ -23,6 +24,7 @@ func BuildOperatorImage(sample sample.Sample, image string) error {
 
 // DeployOperator will deploy an operator onto a Kubernetes cluster by running `make deploy IMG=<image>`
 func DeployOperator(sample sample.Sample, image string) error {
+	// #nosec G204 -- image is supplied by the calling test's own code, not external/untrusted input.
 	cmd := exec.Command("make", "deploy", "IMG="+image)
 	_, err := sample.CommandContext().Run(cmd, sample.Name())
 	if err != nil {

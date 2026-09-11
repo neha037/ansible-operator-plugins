@@ -85,6 +85,8 @@ func playbookCmdFunc(path string) cmdFuncType {
 		if verbosity > 0 {
 			cmdOptions = append(cmdOptions, ansibleVerbosityString(verbosity))
 		}
+		// #nosec G204 -- ansible-runner is a fixed binary name; args are built from
+		// the operator's own watches.yaml configuration, not external/network input.
 		return exec.Command("ansible-runner", append(cmdArgs, cmdOptions...)...)
 	}
 }
@@ -113,6 +115,8 @@ func roleCmdFunc(path string) cmdFuncType {
 		if ansibleGathering == "explicit" {
 			cmdOptions = append(cmdOptions, "--role-skip-facts")
 		}
+		// #nosec G204 -- ansible-runner is a fixed binary name; args are built from
+		// the operator's own watches.yaml configuration, not external/network input.
 		return exec.Command("ansible-runner", append(cmdArgs, cmdOptions...)...)
 	}
 }

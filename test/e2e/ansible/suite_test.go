@@ -128,6 +128,7 @@ var _ = AfterSuite(func() {
 	}
 
 	By("destroying container image and work dir")
+	// #nosec G204 -- image is a hardcoded test constant, not external input.
 	cmd := exec.Command("docker", "rmi", "-f", image)
 	if _, err := ansibleSample.CommandContext().Run(cmd); err != nil {
 		Expect(err).To(BeNil())

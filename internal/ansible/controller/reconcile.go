@@ -19,12 +19,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,7 +75,7 @@ func (r *AnsibleOperatorReconciler) Reconcile(ctx context.Context, request recon
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	ident := strconv.Itoa(rand.Int())
+	ident := uuid.NewString()
 	logger := logf.Log.WithName("reconciler").WithValues(
 		"job", ident,
 		"name", u.GetName(),

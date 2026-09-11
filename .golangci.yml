@@ -19,7 +19,7 @@ linters-settings:
             desc: "Do not import from vendor directory directly"
       prevent-test-in-prod:
         files:
-          - "!*_test.go"
+          - "!$test"
           - "!**/test/**"
         deny:
           - pkg: "github.com/stretchr/testify"
@@ -44,3 +44,16 @@ issues:
     - testdata
     - openshift/vendor
     - openshift/release
+  exclude-rules:
+    # Dot-importing ginkgo/gomega is the established, repo-wide test convention
+    # (16+ existing _test.go files, plus internal/testutils/ helpers, use this
+    # pattern). Not a real issue.
+    - path: "(_test\\.go$|^internal/testutils/)"
+      linters: [revive]
+      text: "^dot-imports:"
+    # pkg/testutils is a public API consumed by downstream projects (see AGENTS.md).
+    # Renaming exported symbols to satisfy naming/stutter conventions would be a
+    # breaking change; only unexported findings in this path get fixed for real.
+    - path: "^pkg/testutils/"
+      linters: [revive]
+      text: "^(exported|var-naming):"

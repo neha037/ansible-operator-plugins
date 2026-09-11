@@ -92,6 +92,7 @@ func makeBundleImageName(projectName string) string {
 // InstallOLMVersion runs 'operator-sdk olm install' for specific version
 // and returns any errors emitted by that command.
 func (tc TestContext) InstallOLMVersion(version string) error {
+	// #nosec G204 -- tc.BinaryName and version are set by the test harness, not external input.
 	cmd := exec.Command(tc.BinaryName, "olm", "install", "--version", version, "--timeout", "4m")
 	_, err := tc.Run(cmd)
 	return err
@@ -99,6 +100,7 @@ func (tc TestContext) InstallOLMVersion(version string) error {
 
 // UninstallOLM runs 'operator-sdk olm uninstall' and logs any errors emitted by that command.
 func (tc TestContext) UninstallOLM() {
+	// #nosec G204 -- tc.BinaryName is set by the test harness, not external input.
 	cmd := exec.Command(tc.BinaryName, "olm", "uninstall")
 	if _, err := tc.Run(cmd); err != nil {
 		fmt.Fprintln(GinkgoWriter, "warning: error when uninstalling OLM:", err)

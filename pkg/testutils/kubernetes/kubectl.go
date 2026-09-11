@@ -98,6 +98,7 @@ func (ku *KubectlUtil) ServiceAccount() string {
 
 // Command is used to run any command prefaced by `kubectl`. i.e `kubectl ...`
 func (ku *KubectlUtil) Command(options ...string) (string, error) {
+	// #nosec G204 -- options are supplied by the calling test's own code, not external input.
 	cmd := exec.Command("kubectl", options...)
 	output, err := ku.commandContext.Run(cmd)
 	return string(output), err
