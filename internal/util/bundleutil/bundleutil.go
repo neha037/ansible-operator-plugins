@@ -267,9 +267,14 @@ func (meta *BundleMetaData) WriteScorecardConfig(inputConfigPath string) error {
 		return err
 	}
 
-	err = os.WriteFile(filepath.Join(scorecardDir, "config.yaml"), b, 0600)
-	if err != nil {
+	outPath := filepath.Join(scorecardDir, "config.yaml")
+	if err := os.WriteFile(outPath, b, 0600); err != nil {
 		return fmt.Errorf("error writing scorecard config %v", err)
+	}
+	// os.WriteFile only applies the mode when creating a new file, so explicitly
+	// tighten permissions in case the file already existed with a looser mode.
+	if err := os.Chmod(outPath, 0600); err != nil {
+		return fmt.Errorf("error setting scorecard config permissions: %w", err)
 	}
 	return nil
 }

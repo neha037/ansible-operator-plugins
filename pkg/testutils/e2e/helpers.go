@@ -43,9 +43,11 @@ func AllowProjectBeMultiGroup(sample sample.Sample) error {
 	}
 
 	projectBytes = append([]byte(multiGroup), projectBytes...)
-	err = os.WriteFile(filepath.Join(sample.Dir(), "PROJECT"), projectBytes, 0600)
-	if err != nil {
+	projectPath := filepath.Join(sample.Dir(), "PROJECT")
+	if err := os.WriteFile(projectPath, projectBytes, 0600); err != nil {
 		return err
 	}
-	return nil
+	// os.WriteFile only applies the mode when creating a new file, so explicitly
+	// tighten permissions in case the file already existed with a looser mode.
+	return os.Chmod(projectPath, 0600)
 }
