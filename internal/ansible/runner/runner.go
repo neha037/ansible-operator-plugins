@@ -183,6 +183,7 @@ type runner struct {
 	ansibleArgs         string
 }
 
+// Run executes an ansible-runner process for the given CR and returns its result.
 func (r *runner) Run(ident string, u *unstructured.Unstructured, kubeconfig string) (RunResult, error) {
 	if _, err := exec.LookPath(ansibleRunnerBin); err != nil {
 		return nil, err
@@ -426,6 +427,7 @@ func escapeAnsibleKey(key string) string {
 	return key
 }
 
+// GetFinalizer returns the configured finalizer name and whether one is set.
 func (r *runner) GetFinalizer() (string, bool) {
 	if r.Finalizer != nil {
 		return r.Finalizer.Name, true

@@ -119,9 +119,6 @@ func ImplementMemcachedMolecule(sample sample.Sample, image string) {
 	watchNamespacePatchPath := filepath.Join(sample.Dir(), "config", "testing", watchNamespacePatchFileName)
 	err = os.WriteFile(watchNamespacePatchPath, []byte(watchNamespacePatch), 0600)
 	pkg.CheckError("adding watch_namespace_patch.yaml", err)
-	// os.WriteFile only applies the mode when creating a new file, so explicitly
-	// tighten permissions in case the file already existed with a looser mode.
-	pkg.CheckError("chmod watch_namespace_patch.yaml", os.Chmod(watchNamespacePatchPath, 0600))
 
 	log.Info("adding WATCH_NAMESPACE env patch to patch list to be applied")
 	err = kbutil.InsertCode(filepath.Join(sample.Dir(), "config", "testing", "kustomization.yaml"), "patches:",

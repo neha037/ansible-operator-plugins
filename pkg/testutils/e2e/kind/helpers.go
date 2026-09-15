@@ -26,7 +26,6 @@ func LoadImageToKindCluster(cc command.CommandContext, image string) error {
 		cluster = v
 	}
 	kindOptions := []string{"load", "docker-image", image, "--name", cluster}
-	// #nosec G204 -- image/cluster are supplied by the calling test's own code, not external input.
 	cmd := exec.Command("kind", kindOptions...)
 	o, err := cc.Run(cmd)
 	if err != nil {

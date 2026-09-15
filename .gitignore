@@ -149,3 +149,7 @@ cover.out
 coverage.txt
 *.log
 tmp/
+
+# Go workspace file
+go.work
+go.work.sum

@@ -57,3 +57,7 @@ issues:
     - path: "^pkg/testutils/"
       linters: [revive]
       text: "^(exported|var-naming):"
+    # gosec is valuable on production controller/runner/proxy code but noisy on
+    # test helpers, codegen tooling, and e2e utilities where inputs are trusted.
+    - path: "^(hack/|pkg/testutils/|test/|internal/testutils/)"
+      linters: [gosec]

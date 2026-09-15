@@ -11,3 +11,8 @@
       status: "True"
   vars:
     cr_file: 'cache_v1alpha1_memfin.yaml'
+
+- name: Add assertions here
+  assert:
+    that: false
+    fail_msg: FIXME Add real assertions for your operator

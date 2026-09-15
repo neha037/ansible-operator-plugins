@@ -1,7 +1,7 @@
 # AgentReady configuration for ansible-operator-plugins
 # See https://github.com/ambient-code/agentready for documentation
 #
-# No attributes are excluded: openapi.yaml documents the one stable JSON API
-# surface (internal/ansible/apiserver) directly, see
-# docs/decisions/adr-0004-openapi-not-applicable.md.
-excluded_attributes: []
+# openapi_specs is excluded because this project has no public HTTP API surface.
+# See docs/decisions/adr-0004-openapi-not-applicable.md.
+excluded_attributes:
+  - openapi_specs
