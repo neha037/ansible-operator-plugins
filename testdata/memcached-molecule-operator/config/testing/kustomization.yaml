@@ -8,6 +8,7 @@ namePrefix: osdk-
 #  someName: someValue
 
 patches:
+- path: watch_namespace_patch.yaml
 - path: manager_image.yaml
 - path: debug_logs_patch.yaml
 - path: ../default/manager_metrics_patch.yaml
