@@ -38,9 +38,3 @@ commands, and rules for when they must be updated.
    pipeline. See [docs/references/downstream-sync.md](../references/downstream-sync.md)
    for the rebase workflow and `UPSTREAM: <carry|drop>:` commit convention.
 
-## When Repo-Wide Regeneration Is Mandatory
-
-- Any change to `go.mod` → `go mod tidy && go mod vendor`
-- Any change to `pkg/plugins/` templates → `make generate`
-- Any change to `hack/generate/` scripts → `make generate`
-- Import path changes in `internal/` or `pkg/` → `make generate` (testdata may import these)

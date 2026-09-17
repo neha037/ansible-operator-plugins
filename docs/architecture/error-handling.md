@@ -45,15 +45,6 @@ The `Reconcile` method returns `(reconcile.Result, error)` to controller-runtime
 Every reconciler error must attempt a corresponding status update before
 returning. The pattern uses paired variables (`err` / `errmark`):
 
-```go
-errmark := r.markError(ctx, nn, u, "Unable to run reconciliation")
-if errmark != nil {
-    logger.Error(errmark, "Unable to mark error to run reconciliation")
-}
-logger.Error(err, "Unable to run ansible runner")
-return reconcileResult, err  // return the ORIGINAL error, not errmark
-```
-
 Rules:
 - Always return the **original** error to controller-runtime, never the status-update error.
 - Log the status-update error separately if it fails.
@@ -81,18 +72,6 @@ This codebase uses `%w` wrapping sparingly:
 When adding new errors:
 - Use `%w` when the caller needs `errors.Is` or `errors.As`.
 - Use `errors.New` or `%v` for human-readable messages that will only be logged.
-
-## errors.Is Usage
-
-Used exclusively for `os.ErrClosed` and `os.ErrNotExist` checks in resource cleanup:
-
-```go
-if err := file.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
-    log.Error(err, "Failed to close file")
-}
-```
-
-This pattern appears in `kubeconfig.go`, `inputdir.go`, and `eventapi.go`.
 
 ## Kubernetes API Error Handling
 
@@ -139,11 +118,6 @@ Metric validation errors return `400 Bad Request`. Use `log.Info(err.Error())`
 - Async goroutine errors are logged but not returned (the `Run` method has already returned).
 - `http.ErrServerClosed` from the event API is explicitly ignored as a clean shutdown signal.
 - Use `errors.Is(err, os.ErrNotExist)` for artifact symlink checks.
-
-## Startup / CLI Errors
-
-Fatal startup errors use `log.Error` followed by `os.Exit(1)`. There is no error
-propagation -- the process exits immediately.
 
 ## Status Condition Types
 

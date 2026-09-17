@@ -32,19 +32,3 @@ validator -- it would reject these legitimate downstream commits.
 | `check-requirements` | Validate downstream requirements are consistent |
 | `check-collections` | Validate Ansible collections are up to date |
 
-## What to Edit Upstream vs. Downstream
-
-| Change | Where |
-|---|---|
-| Go source code, controller logic | Root (`internal/`, `pkg/`, `cmd/`) |
-| Scaffold templates | `pkg/plugins/ansible/v1/scaffolds/` |
-| Go dependencies | Root `go.mod` + `vendor/` |
-| OpenShift-specific build config | `openshift/` |
-| Ansible collections | `openshift/release/ansible/` (via rebase script) |
-| Downstream Go dependencies | `openshift/go.mod` + `openshift/vendor/` |
-| CI operator config | `.ci-operator.yaml` |
-
-## Downstream Ownership
-
-- `DOWNSTREAM_OWNERS` and `DOWNSTREAM_OWNERS_ALIASES` control review permissions for the OpenShift fork.
-- `.ci-operator.yaml` configures the OpenShift CI build root image.

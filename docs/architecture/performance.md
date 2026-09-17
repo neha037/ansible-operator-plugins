@@ -62,25 +62,15 @@ Three distinct usages:
 Only the runner goroutine cleans up the EventReceiver. Event handlers must be
 goroutine-safe and must not modify the `unstructured.Unstructured` object.
 
-## 7. Mutex for Stdout Serialization
-
-`loggingEventHandler` uses a `sync.Mutex` (not RWMutex) to serialize stdout writes.
-Each locked section must contain only print calls, not log calls.
-
-## 8. Resource Cleanup
+## 7. Resource Cleanup
 
 - **Unix sockets**: Created at `/tmp/ansibleoperator-<ident>`, removed in `EventReceiver.Close()`.
 - **Kubeconfig temp files**: Created per reconcile, removed via `defer os.Remove(kc.Name())`.
 - **Runner artifacts**: Controlled by `maxRunnerArtifacts` (default 20). A `latest` symlink is maintained.
 
-## 9. Error Channel Pattern
+## 8. Error Channel Pattern
 
 The runner creates `make(chan error, 1)`. The buffer size of 1 prevents the
 HTTP server's `Serve` goroutine from blocking. Use this same pattern for any
 new background error communication.
 
-## 10. Context Usage
-
-- Reconcile context is **not** passed to ansible-runner. Runs are not interruptible via context.
-- Cache reads use `context.WithTimeout(context.Background(), 6s)`, not the request context.
-- The informer cache start uses `context.WithCancel(context.TODO())`.

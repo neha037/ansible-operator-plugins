@@ -94,49 +94,6 @@ make test-e2e-ansible-molecule
 - Unit tests run with `-short` flag via `make test-unit`. Tests requiring a
   live cluster are skipped in short mode.
 
-## Build System
-
-### Key Make Targets
-
-| Target | Purpose |
-|---|---|
-| `make setup` | Bootstrap dev tools via bingo (idempotent) |
-| `make verify` / `make check` | Full non-cluster validation (sanity + unit) |
-| `make build` | Build the `ansible-operator` binary |
-| `make install` | `go install` the binary |
-| `make generate` | Rebuild binary, then regenerate all testdata samples |
-| `make fix` | `go mod tidy` + `go fmt` + `golangci-lint --fix` |
-| `make lint` | Run golangci-lint (no fix) |
-| `make test-sanity` | Format, lint, vet, license, error message format, `git diff` |
-| `make test-unit` | Unit tests with envtest and `-short` flag |
-| `make test-static` | `test-sanity` + `test-unit` |
-| `make test-e2e` | Full E2E: Kind cluster, images, all suites |
-| `make test-e2e-ansible` | Ansible-specific E2E only |
-| `make image-build` | Build Docker image via buildx |
-| `make release` | Run goreleaser (snapshot by default) |
-
-### Build Variables
-
-- `CGO_ENABLED=0` is set globally.
-- Version info injected via `-ldflags` from `internal/version/version.go`.
-  `ImageVersion` (in `version.go`) and `IMAGE_VERSION` (in `Makefile`) must
-  be updated together before releases.
-- Cross-platform builds use `BUILD_GOOS` and `BUILD_GOARCH` overrides.
-- Tool versions managed by bingo in `.bingo/`. Pinned: golangci-lint v1.62.2,
-  goreleaser v1.16.2, kind v0.24.0, setup-envtest.
-
-## CI Pipeline
-
-Four GitHub Actions workflows run on every PR:
-
-1. **sanity** (`test-sanity.yml`) -- `make test-sanity`
-2. **unit** (`unit.yml`) -- `make test-unit`
-3. **ansible** (`test-ansible.yml`) -- `make test-e2e-ansible` + `make test-e2e-ansible-molecule`
-4. **release** (`release.yml`) -- goreleaser build + multi-arch Docker image (publishes only on tag push)
-
-All workflows use `go-version-file: "go.mod"`. The `test-docs` target is
-currently disabled (missing dependencies).
-
 ## Code Conventions
 
 ### License Header
@@ -183,19 +140,6 @@ go mod vendor
 Commit the updated `vendor/`. The `make fix` target runs `go mod tidy` but
 does not run `go mod vendor`.
 
-## Dependency Management
-
-Dependabot is configured for Docker image dependencies and GitHub Actions.
-Go module dependencies are updated manually.
-
-Key dependencies:
-- `sigs.k8s.io/controller-runtime` -- controller lifecycle
-- `k8s.io/client-go` -- Kubernetes API client
-- `github.com/operator-framework/operator-lib` -- predicates, handlers, annotations
-- `sigs.k8s.io/kubebuilder/v4` -- plugin framework
-- `github.com/prometheus/client_golang` -- metrics
-- `github.com/spf13/cobra` + `pflag` + `viper` -- CLI
-
 ## Release Process
 
 Releases are tag-driven. See [docs/decisions/adr-0003-release-rebase-workflow.md](decisions/adr-0003-release-rebase-workflow.md) for the full workflow.
@@ -211,8 +155,3 @@ See [docs/references/downstream-sync.md](references/downstream-sync.md) for
 the full rebase workflow, `UPSTREAM: <carry|drop>:` convention, and downstream
 Make targets.
 
-## Lint Configuration
-
-The repository uses golangci-lint v1.62.2 (pinned via bingo) with a root
-`.golangci.yml` configuration. The config enables conservative correctness
-linters and excludes `vendor/`, `testdata/`, and `openshift/vendor/`.

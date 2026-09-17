@@ -31,16 +31,6 @@ testdata/               Generated sample projects; leaf artifact, never hand-edi
 - `openshift/` Go code does not import the root module's packages at build time
   (it has its own `go.mod`).
 
-## Generated vs. Source Artifacts
-
-| Artifact | Editable? | Regeneration |
-|---|---|---|
-| `pkg/plugins/ansible/v1/scaffolds/internal/templates/` | Yes (source) | N/A |
-| `testdata/` | No (generated from templates) | `make generate` |
-| `vendor/` | No (generated from `go.mod`) | `go mod tidy && go mod vendor` |
-| `openshift/vendor/` | No (generated from `openshift/go.mod`) | Downstream pipeline |
-| `openshift/release/ansible/ansible_collections/` | No (generated) | `openshift/hack/rebase_upstream.sh` |
-
 ## Proxy Handler Chain Ordering
 
 The handler chain in `proxy.go` is assembled inside-out and the ordering is

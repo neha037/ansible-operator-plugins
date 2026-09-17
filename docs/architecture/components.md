@@ -96,12 +96,3 @@ via a Unix-domain-socket HTTP API, and updates the CR's status conditions.
 46. Templates in `scaffolds/internal/templates/` generate: Dockerfile, watches.yaml, molecule tests, RBAC manifests, kustomize config.
 47. Scaffold output goes to `testdata/` via `make generate`. Edit templates, never testdata directly.
 
-## File Size Notes
-
-The following files are the largest in the core implementation. They have been
-reviewed for separation of concerns and currently represent coherent
-single-responsibility units:
-
-- `internal/ansible/controller/reconcile.go` (448 lines) -- reconcile loop + event processing
-- `internal/ansible/watches/watches.go` (502 lines) -- watch loading, validation, env var handling
-- `pkg/plugins/util/cleanup.go` (315 lines) -- scaffold cleanup utilities

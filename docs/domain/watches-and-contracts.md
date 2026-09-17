@@ -98,17 +98,3 @@ All status updates use the status subresource (`client.Status().Update()`).
 - `ansible.sdk.operatorframework.io/max-runner-artifacts` -- overrides max artifacts per CR.
 - `ansible.sdk.operatorframework.io/verbosity` -- overrides ansible verbosity per CR.
 
-## Parameter Conversion (internal/ansible/paramconv)
-
-- By default (`snakeCaseParameters: true`), CR spec fields are converted to snake_case before passing to Ansible.
-- When `markUnsafe: true`, all string values in parameters are wrapped as `{"__ansible_unsafe": "value"}` to prevent Ansible template injection.
-- The full CR object is available under the key `_{group}_{kind}` with its original casing.
-
-## Default Ports and Addresses
-
-| Component | Default Address | Default Port | Flag/Config |
-|---|---|---|---|
-| REST Proxy | localhost | 8888 | `--proxy-port` |
-| Metrics API | localhost | 5050 | hardcoded |
-| Controller Metrics | 0.0.0.0 | 8443 | `--metrics-bind-address` |
-| Health Probe | 0.0.0.0 | 6789 | `--health-probe-bind-address` |

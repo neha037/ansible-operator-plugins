@@ -46,15 +46,6 @@ owner reference metadata. The username field carries a base64-encoded JSON
 - Virtual resources return HTTP 500 rather than silently skipping.
 - Watch registration restricted to `watchedNamespaces`.
 
-## RBAC Scaffolding
-
-The scaffolded ClusterRole has broad default permissions (full CRUD on secrets,
-pods, pods/exec, pods/log). Production operators should narrow these.
-
-Metrics endpoint protection requires both `--metrics-secure` and
-`--metrics-require-rbac` flags. Leader election uses namespaced `Role` with
-`"leases"` resource lock.
-
 ## Input Validation
 
 1. `watches.yaml` validates GVK, paths, finalizer names, and duplicate detection.
@@ -66,12 +57,3 @@ Metrics endpoint protection requires both `--metrics-secure` and
 - Runner input directories: `os.ModePerm` (0777) for directories, `0644` for files.
 - Project utility constants: `DirMode = 0755`, `FileMode = 0644`, `ExecFileMode = 0755`.
 
-## Pod Security
-
-Scaffolded manager enforces restricted Pod Security Standard: `runAsNonRoot: true`,
-`seccompProfile: RuntimeDefault`, `allowPrivilegeEscalation: false`, drops all capabilities.
-
-## Request Logging Caution
-
-When `--log-requests` is enabled, full request bodies are logged, including secrets.
-Avoid enabling verbose logging in production.

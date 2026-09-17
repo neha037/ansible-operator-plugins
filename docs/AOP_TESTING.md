@@ -89,25 +89,6 @@ Template-based fixtures are rendered at test time and cleaned up with `defer os.
 4. `AfterEach`: delete CRs, undeploy operator
 5. `AfterSuite`: uninstall Prometheus, remove docker image, remove test directory
 
-### Eventually Timeouts
-
-| Scenario | Timeout | Poll Interval |
-|---|---|---|
-| Operator pod ready | 2 min | 1 sec |
-| Service/resource availability | 3 min | 1 sec |
-| CR reconciliation and log checks | 1 min | 1 sec |
-| Resource deletion/cleanup | 2 min | 1 sec |
-
-## Make Targets
-
-| Target | Description |
-|---|---|
-| `make test-unit` | Unit tests with envtest, `-short`, coverage. Excludes `test/` packages. |
-| `make test-e2e` | Full E2E (Kind cluster, images). |
-| `make test-e2e-ansible` | Ansible-specific E2E with Ginkgo verbose output. |
-| `make test-static` | Sanity + unit combined. |
-| `make test-sanity` | Formatting, linting, vet, license checks. |
-
 ## Key Conventions
 
 1. In Ginkgo tests, structure as `Describe` > `Context`/`When` > `It`. Use `BeforeEach` for per-spec setup.
