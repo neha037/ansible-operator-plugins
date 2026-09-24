@@ -22,6 +22,86 @@ The downstream artifacts are as follows:
 # Syncing
 
 When an upstream release is ready, you can sync down that release downstream.
+This can be done manually or automatically via a Prow periodic.
+
+## Automatic rebase (periodic)
+
+A Prow periodic runs [`hack/auto-rebase.sh`](../hack/auto-rebase.sh) weekly
+against `main`. A custom script is used because this repo rebases via **git
+merge** (not `git rebase` like rebasebot) and discovers releases by selecting the
+newest `v*` tag beyond [`UPSTREAM-VERSION`](../UPSTREAM-VERSION) rather than
+tracking a branch.
+
+The workflow:
+
+1. Compare `UPSTREAM-VERSION` to the newest upstream `v*` release tag.
+2. If newer, run `./openshift/hack/rebase_upstream.sh <tag> main`.
+3. Update golang builder pins (`.ci-operator.yaml`, `openshift/Dockerfile`) if
+   the upstream Go version changed.
+4. Attempt `make -f openshift/Makefile update-collections` and
+   `make -f openshift/Makefile generate-requirements` (requires a container
+   engine; skipped if unavailable).
+5. Push and open a PR. Failed gates = draft PR + non-zero exit (CI goes red).
+
+The bot does **not** auto-merge. A human reviews, verifies collections and
+requirements, requests an ART test build, and merges.
+
+### Credentials
+
+The periodic uses `openshift-app-platform-shift-bot` via the existing
+`test-credentials` secret. The GitHub App must be installed on this repo with
+`contents:write` and `pull_requests:write`. It cannot merge.
+
+### Prerequisites
+
+`git`, `gh` (GitHub CLI), `go`, and optionally `docker` or `podman` (for
+collections and requirements generation).
+
+### Dry-run
+
+To preview what the auto-rebase would do without making changes:
+
+```sh
+DRY_RUN=1 ./hack/auto-rebase.sh
+```
+
+To force a specific tag:
+
+```sh
+OVERRIDE_TAG=v1.43.0 DRY_RUN=1 ./hack/auto-rebase.sh
+```
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `OVERRIDE_TAG` | _(unset)_ | Rebase this tag instead of scanning |
+| `REBASE_BRANCH` | `main` | Downstream branch to rebase onto |
+| `UPSTREAM_REMOTE` | `upstream` | Remote name for upstream repo |
+| `UPSTREAM_URL` | `https://github.com/operator-framework/ansible-operator-plugins.git` | URL for the upstream remote |
+| `ORIGIN_REMOTE` | `origin` | Remote name for push |
+| `ORIGIN_URL` | `https://github.com/${DEST_ORG_REPO}.git` | URL for the origin remote |
+| `DEST_ORG_REPO` | `openshift/ansible-operator-plugins` | GitHub org/repo for PRs |
+| `GITHUB_TOKEN` | _(required)_ | Token for push + `gh pr create` |
+| `DRY_RUN` | `0` | Only report what would happen |
+| `FORCE_REMOTE_URLS` | `0` | Allow rewriting a fork's remote URLs |
+| `ALLOW_BRANCH_DELETE` | `0` (auto `1` in CI) | Allow deleting stale local rebase branches |
+| `GIT_AUTHOR_NAME` | `openshift-app-platform-shift-bot` | Git identity for commits |
+| `GIT_AUTHOR_EMAIL` | `267347085+...@users.noreply.github.com` | Git identity email |
+
+### Companion Prow job
+
+The periodic job definition lives in `openshift/release` (not in this repo).
+Follow the pattern from
+[openshift/release#82799](https://github.com/openshift/release/pull/82799):
+
+- **Job name:** `periodic-ci-openshift-ansible-operator-plugins-main-periodics-auto-rebase`
+- **Schedule:** `0 6 * * 1` (Mondays 06:00 UTC)
+- **Runs:** `./hack/auto-rebase.sh`
+- **Credentials:** GitHub App `openshift-app-platform-shift-bot`
+- **CI image requirements:** `gh` CLI, `go`, optionally `podman`
+
+## Manual rebase
 
 ## Verify upstream
 
