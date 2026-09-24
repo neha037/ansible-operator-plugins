@@ -87,7 +87,7 @@ _github_org_repo() {
     https://*@github.com/*)
       local userinfo=${url#https://}
       userinfo=${userinfo%%@github.com/*}
-      [[ "$userinfo" != */* ]] || return 1
+      [[ "$userinfo" != */* && "$userinfo" != *\?* && "$userinfo" != *#* && "$userinfo" != *@* ]] || return 1
       repo=${url#https://*@github.com/}
       ;;
     ssh://git@github.com/*)
