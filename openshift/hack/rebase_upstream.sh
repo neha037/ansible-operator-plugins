@@ -105,12 +105,12 @@ else
   unmerged_files="<NONE>"
 fi
 
+# just to make sure an old version merge is not being made
+git diff --staged --quiet && { echo "No changed files in merge?! Aborting."; exit 1; }
+
 # bump UPSTREAM-VERSION file
 echo "$version" > UPSTREAM-VERSION
 git add UPSTREAM-VERSION
-
-# just to make sure an old version merge is not being made
-git diff --staged --quiet && { echo "No changed files in merge?! Aborting."; exit 1; }
 
 # make local commit
 if ! git commit -m "Merge upstream tag $version" -m "Ansible Operator Plugins $version" -m "Merge executed via ./openshift/hack/rebase_upstream.sh $version $rebase_branch $upstream_remote" -m "$(printf "Overwritten conflicts:\\n%s" "$unmerged_files")"; then
@@ -134,39 +134,45 @@ else
   echo "No changed files in vendor directory. Skipping add."
 fi
 
-# Generate the openshift/release/ansible/ansible_collections directory.
-# In CI this may fail if no container engine is available; the auto-rebase
-# orchestrator handles that case and flags it in the PR.
-if make -f openshift/Makefile update-collections; then
-  if ! git diff --quiet openshift/release/ansible/ansible_collections/; then
-    git add openshift/release/ansible/ansible_collections
-    if ! git commit -m "UPSTREAM: <carry>: Update ansible_collections directory"; then
-      echo "Failed to create ansible_collections commit, aborting."
-      exit 1
+# Generate downstream collections and requirements unless the auto-rebase
+# orchestrator will run those gates after the merge.
+if [[ "${SKIP_GENERATION:-0}" != "1" ]]; then
+  # Generate the openshift/release/ansible/ansible_collections directory.
+  # In CI this may fail if no container engine is available; the auto-rebase
+  # orchestrator handles that case and flags it in the PR.
+  if make -f openshift/Makefile update-collections; then
+    if ! git diff --quiet openshift/release/ansible/ansible_collections/; then
+      git add openshift/release/ansible/ansible_collections
+      if ! git commit -m "UPSTREAM: <carry>: Update ansible_collections directory"; then
+        echo "Failed to create ansible_collections commit, aborting."
+        exit 1
+      fi
+    else
+      echo "No changed files in ansible_collections directory. Skipping add."
     fi
   else
-    echo "No changed files in ansible_collections directory. Skipping add."
+    echo "WARNING: Updating ansible_collections directory failed. Continuing; manual follow-up needed."
   fi
-else
-  echo "WARNING: Updating ansible_collections directory failed. Continuing; manual follow-up needed."
-fi
 
-# Generate the requirements and build-requirements files corresponding to the
-# images/ansible-operator/Pipfile and images/ansible-operator/Pipfile.lock
-# files. For solving issues related to the failure of the generation of the
-# downstream requirements files refer to the openshift/README.md.
-if make -f openshift/Makefile generate-requirements; then
-  if ! git diff --quiet openshift/; then
-    git add openshift/
-    if ! git commit -m "UPSTREAM: <carry>: Update downstream requirements"; then
-      echo "Failed to create downstream requirements commit, aborting."
-      exit 1
+  # Generate the requirements and build-requirements files corresponding to the
+  # images/ansible-operator/Pipfile and images/ansible-operator/Pipfile.lock
+  # files. For solving issues related to the failure of the generation of the
+  # downstream requirements files refer to the openshift/README.md.
+  if make -f openshift/Makefile generate-requirements; then
+    if ! git diff --quiet openshift/; then
+      git add openshift/
+      if ! git commit -m "UPSTREAM: <carry>: Update downstream requirements"; then
+        echo "Failed to create downstream requirements commit, aborting."
+        exit 1
+      fi
+    else
+      echo "No changed files in openshift directory. Skipping add."
     fi
   else
-    echo "No changed files in openshift directory. Skipping add."
+    echo "WARNING: Generate requirements files failed. Continuing; manual follow-up needed."
   fi
 else
-  echo "WARNING: Generate requirements files failed. Continuing; manual follow-up needed."
+  echo "SKIP_GENERATION=1: skipping collections and requirements generation"
 fi
 
 printf "\\n** Upstream merge complete! **\\n"

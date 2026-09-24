@@ -74,20 +74,34 @@ version_gt() {
   [[ "$(printf '%s\n%s\n' "$a" "$b" | sort -V | tail -n1)" == "$a" && "$a" != "$b" ]]
 }
 
-# Replace userinfo in a URL with *** before logging.
-_redact_url() {
+# Extract a safe "org/repo" identifier from supported GitHub URL forms.
+# Never emit the original URL: it may contain credentials or point at an
+# internal host.
+_github_org_repo() {
   local url=$1
-  printf '%s\n' "${url//:\/\/*@/:\/\/***@}"
-}
+  local repo
+  case "$url" in
+    https://github.com/*)
+      repo=${url#https://github.com/}
+      ;;
+    https://*@github.com/*)
+      repo=${url#https://*@github.com/}
+      ;;
+    ssh://git@github.com/*)
+      repo=${url#ssh://git@github.com/}
+      ;;
+    git@github.com:*)
+      repo=${url#git@github.com:}
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 
-# Extract "org/repo" from any GitHub URL form.
-_extract_org_repo() {
-  local url=$1
-  url=${url%.git}
-  url=${url%/}
-  url=${url#*github.com[:/]}
-  url=${url#*github.com/}
-  printf '%s\n' "$url"
+  repo=${repo%.git}
+  repo=${repo%/}
+  [[ "$repo" =~ ^[[:alnum:]._-]+/[[:alnum:]._-]+$ ]] || return 1
+  printf '%s\n' "$repo"
 }
 
 # Add or update a git remote; protects all remotes from silent org/repo overwrites.
@@ -98,8 +112,10 @@ ensure_remote() {
     current=$(git remote get-url "$name")
     if [[ "$current" != "$url" ]]; then
       local cur_repo exp_repo
-      cur_repo=$(_extract_org_repo "$current")
-      exp_repo=$(_extract_org_repo "$url")
+      cur_repo=$(_github_org_repo "$current") \
+        || die "Remote ${name} must use a supported github.com URL"
+      exp_repo=$(_github_org_repo "$url") \
+        || die "Configured URL for remote ${name} must use a supported github.com URL"
       if [[ "$cur_repo" == "$exp_repo" ]]; then
         log "Remote ${name} org/repo matches (${cur_repo}); keeping existing URL"
         return 0
@@ -107,7 +123,7 @@ ensure_remote() {
       if [[ "$FORCE_REMOTE_URLS" != "1" ]]; then
         die "Remote ${name} points at ${cur_repo} but expected ${exp_repo}. Set FORCE_REMOTE_URLS=1 to overwrite, or set the matching URL env var to match your config."
       fi
-      log "Rewriting remote ${name}: $(_redact_url "$current") -> $(_redact_url "$url")"
+      log "Rewriting remote ${name} to ${exp_repo}"
       git remote set-url "$name" "$url"
     fi
   else
@@ -154,7 +170,7 @@ newest_upstream_tag() {
         newest=$tag
       fi
     fi
-  done < <(git ls-remote --tags "$UPSTREAM_URL" 'v*')
+  done < <(git ls-remote --tags "$UPSTREAM_URL" 'v*' 2>/dev/null)
   printf '%s\n' "$newest"
 }
 
@@ -341,8 +357,13 @@ EOF
 main() {
   local pin tag branch
 
+  _github_org_repo "$UPSTREAM_URL" >/dev/null \
+    || die "UPSTREAM_URL must use a supported github.com URL"
+  _github_org_repo "$ORIGIN_URL" >/dev/null \
+    || die "ORIGIN_URL must use a supported github.com URL"
+
   log "Fetching upstream tags"
-  git fetch -t "$UPSTREAM_URL"
+  git fetch -t "$UPSTREAM_URL" 2>/dev/null || die "Failed to fetch upstream tags"
 
   pin=$(current_pin)
   if [[ -n "${OVERRIDE_TAG:-}" ]]; then
@@ -377,7 +398,10 @@ main() {
   ensure_remote "$UPSTREAM_REMOTE" "$UPSTREAM_URL"
   ensure_remote "$ORIGIN_REMOTE" "$ORIGIN_URL"
 
-  git fetch "$ORIGIN_REMOTE" "$REBASE_BRANCH" || git fetch "$ORIGIN_REMOTE"
+  if ! git fetch "$ORIGIN_REMOTE" "$REBASE_BRANCH" 2>/dev/null \
+    && ! git fetch "$ORIGIN_REMOTE" 2>/dev/null; then
+    die "Failed to fetch ${ORIGIN_REMOTE}/${REBASE_BRANCH}"
+  fi
 
   [[ -n "${GITHUB_TOKEN:-}" ]] || log "WARNING: no GITHUB_TOKEN; push/PR may fail"
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
@@ -392,6 +416,12 @@ main() {
   configure_git_identity
   setup_credential_helper
 
+  if ! is_ci_context && git show-ref --verify --quiet "refs/heads/${REBASE_BRANCH}"; then
+    if ! git merge-base --is-ancestor "$REBASE_BRANCH" "$ORIGIN_REMOTE/$REBASE_BRANCH"; then
+      die "Local branch ${REBASE_BRANCH} contains commits not in ${ORIGIN_REMOTE}/${REBASE_BRANCH}; refusing to discard them outside CI"
+    fi
+  fi
+
   git checkout -B "$REBASE_BRANCH" "$ORIGIN_REMOTE/$REBASE_BRANCH"
   git branch --set-upstream-to="$ORIGIN_REMOTE/$REBASE_BRANCH" "$REBASE_BRANCH"
 
@@ -404,7 +434,7 @@ main() {
   trap 'log "FAILED (rc=$?) on branch $(git rev-parse --abbrev-ref HEAD 2>/dev/null)"' ERR
 
   log "Running rebase_upstream.sh ${tag} ${REBASE_BRANCH} ${UPSTREAM_REMOTE}"
-  ./openshift/hack/rebase_upstream.sh "$tag" "$REBASE_BRANCH" "$UPSTREAM_REMOTE"
+  SKIP_GENERATION=1 ./openshift/hack/rebase_upstream.sh "$tag" "$REBASE_BRANCH" "$UPSTREAM_REMOTE"
 
   update_golang_builder
 
@@ -414,7 +444,8 @@ main() {
   [[ -n "${GITHUB_TOKEN:-}" ]] || die "GITHUB_TOKEN required to push and open PR"
 
   log "Pushing ${branch}"
-  git push -u "$ORIGIN_REMOTE" "$branch"
+  git push --force -u "$ORIGIN_REMOTE" "$branch" 2>/dev/null \
+    || die "Failed to push ${branch}"
 
   log "Opening pull request"
   create_pr "$tag" "$branch" "$pin"
