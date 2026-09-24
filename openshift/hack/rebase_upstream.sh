@@ -141,7 +141,7 @@ if [[ "${SKIP_GENERATION:-0}" != "1" ]]; then
   # In CI this may fail if no container engine is available; the auto-rebase
   # orchestrator handles that case and flags it in the PR.
   if make -f openshift/Makefile update-collections; then
-    if ! git diff --quiet openshift/release/ansible/ansible_collections/; then
+    if [[ -n "$(git status --porcelain -- openshift/release/ansible/ansible_collections/)" ]]; then
       git add openshift/release/ansible/ansible_collections
       if ! git commit -m "UPSTREAM: <carry>: Update ansible_collections directory"; then
         echo "Failed to create ansible_collections commit, aborting."

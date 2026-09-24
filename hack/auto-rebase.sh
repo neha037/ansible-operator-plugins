@@ -85,6 +85,9 @@ _github_org_repo() {
       repo=${url#https://github.com/}
       ;;
     https://*@github.com/*)
+      local userinfo=${url#https://}
+      userinfo=${userinfo%%@github.com/*}
+      [[ "$userinfo" != */* ]] || return 1
       repo=${url#https://*@github.com/}
       ;;
     ssh://git@github.com/*)
@@ -279,7 +282,7 @@ run_collections_gate() {
     _collections_ok=0
     return 0
   fi
-  if ! git diff --quiet openshift/release/ansible/ansible_collections/; then
+  if [[ -n "$(git status --porcelain -- openshift/release/ansible/ansible_collections/)" ]]; then
     git add openshift/release/ansible/ansible_collections
     git commit -m "UPSTREAM: <carry>: Update ansible_collections directory"
   else
