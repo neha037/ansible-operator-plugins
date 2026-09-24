@@ -15,6 +15,7 @@
 #   ORIGIN_URL             URL for the origin remote (default: https://github.com/${DEST_ORG_REPO}.git).
 #   DEST_ORG_REPO          GitHub org/repo for PRs (default: openshift/ansible-operator-plugins).
 #   GITHUB_TOKEN           Token for push + gh pr create (minted by the periodic job).
+#   CONTAINER_ENGINE       Optional. Override the container engine used for generation.
 #   DRY_RUN                If set to 1, only report what would happen (no merge/push/PR).
 #   FORCE_REMOTE_URLS      If set to 1, allow rewriting an existing remote whose
 #                          org/repo differs from the expected value (e.g. a developer fork).
@@ -40,7 +41,7 @@ FORCE_REMOTE_URLS=${FORCE_REMOTE_URLS:-0}
 GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-openshift-app-platform-shift-bot}
 GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-267347085+openshift-app-platform-shift-bot@users.noreply.github.com}
 
-log() { printf '==> %s\n' "$*"; }
+log() { printf '==> %s\n' "$*" >&2; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 # --- Cleanup (credential file only) ---
@@ -189,35 +190,83 @@ open_pr_exists() {
   [[ "$count" -gt 0 ]]
 }
 
-# Resolve the correct OCP version for a given Go builder image.
-_resolve_builder_ocp() {
-  local new_go=$1 current_ocp=$2
-
-  command -v oc >/dev/null 2>&1 || return 1
-
-  local all_tags
-  all_tags=$(oc get is builder -n ocp \
-    -o jsonpath='{.status.tags[*].tag}' 2>/dev/null) || return 1
-  [[ -n "$all_tags" ]] || return 1
-
-  # Fast path: same OCP version already has the builder
-  # shellcheck disable=SC2086
-  if printf '%s\n' $all_tags | grep -qF "rhel-9-golang-${new_go}-openshift-${current_ocp}"; then
+# Select the current OCP version when present, otherwise the newest matching tag.
+_pick_ocp_from_tags() {
+  local current_ocp=$1 prefix=$2 all_tags=$3 best_ocp
+  if printf '%s\n' "$all_tags" | tr ' ' '\n' | grep -qxF "${prefix}${current_ocp}"; then
     printf '%s\n' "$current_ocp"
     return 0
   fi
-
-  # Fallback: find the highest OCP version that has this Go builder
-  local best_ocp
-  # shellcheck disable=SC2086
-  best_ocp=$(printf '%s\n' $all_tags \
-    | sed -n "s/^rhel-9-golang-${new_go}-openshift-\([0-9][0-9]*\.[0-9][0-9]*\)$/\1/p" \
+  best_ocp=$(printf '%s\n' "$all_tags" | tr ' ' '\n' \
+    | sed -n "s/^${prefix}\([0-9][0-9]*\.[0-9][0-9]*\)$/\1/p" \
     | sort -V | tail -1)
-  if [[ -n "$best_ocp" ]]; then
-    printf '%s\n' "$best_ocp"
+  [[ -n "$best_ocp" ]] || return 1
+  printf '%s\n' "$best_ocp"
+}
+
+_builder_ocp_candidates() {
+  local current=$1 major=${1%%.*} minor=${1#*.} i
+  [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ ]] || return 1
+  for ((i = 0; i <= 4; i++)); do printf '%s.%s\n' "$major" "$((minor + i))"; done
+  if [[ "$major" -eq 4 ]]; then
+    for i in 0 1 2 3; do printf '5.%s\n' "$i"; done
+  fi
+}
+
+_builder_image_exists() {
+  local new_go=$1 ocp=$2 secret
+  local ref="registry.ci.openshift.org/ocp/builder:rhel-9-golang-${new_go}-openshift-${ocp}"
+  local -a args=("$ref" --filter-by-os=linux/amd64)
+  for secret in /var/run/secrets/ci-pull-credentials/.dockerconfigjson \
+                /var/run/secrets/registry-pull--build-farms/.dockerconfigjson; do
+    if [[ -f "$secret" ]]; then
+      args+=("--registry-config=$secret")
+      break
+    fi
+  done
+  oc image info "${args[@]}" >/dev/null 2>&1
+}
+
+# Try app.ci and build-farm imagestreams, then authenticated registry probes.
+_resolve_builder_ocp() {
+  local new_go=$1 current_ocp=$2 all_tags best_ocp ocp
+  if ! command -v oc >/dev/null 2>&1; then
+    log "oc not on PATH; cannot resolve builder image"
+    return 1
+  fi
+  if all_tags=$(oc get is builder -n ocp \
+      -o jsonpath='{.status.tags[*].tag}' 2>/dev/null) && [[ -n "$all_tags" ]]; then
+    if best_ocp=$(_pick_ocp_from_tags "$current_ocp" \
+        "rhel-9-golang-${new_go}-openshift-" "$all_tags"); then
+      printf '%s\n' "$best_ocp"
+      return 0
+    fi
+    log "ocp/builder has no matching Go tag; trying openshift/release"
+  else
+    log "ocp/builder unavailable; trying openshift/release"
+  fi
+  if all_tags=$(oc get is release -n openshift \
+      -o jsonpath='{.status.tags[*].tag}' 2>/dev/null) && [[ -n "$all_tags" ]]; then
+    if best_ocp=$(_pick_ocp_from_tags "$current_ocp" \
+        "rhel-9-release-golang-${new_go}-openshift-" "$all_tags"); then
+      printf '%s\n' "$best_ocp"
+      return 0
+    fi
+    log "openshift/release has no matching Go tag; trying registry"
+  else
+    log "openshift/release unavailable; trying registry"
+  fi
+  if _builder_image_exists "$new_go" "$current_ocp"; then
+    printf '%s\n' "$current_ocp"
     return 0
   fi
-
+  while IFS= read -r ocp; do
+    [[ -n "$ocp" && "$ocp" != "$current_ocp" ]] || continue
+    if _builder_image_exists "$new_go" "$ocp"; then
+      printf '%s\n' "$ocp"
+      return 0
+    fi
+  done < <(_builder_ocp_candidates "$current_ocp" | sort -uVr)
   return 1
 }
 
@@ -269,22 +318,44 @@ update_golang_builder() {
 _collections_ok=1
 _requirements_ok=1
 
+# A binary on PATH is not enough: Docker may have no daemon in the CI pod.
+select_container_engine() {
+  local engine
+  if [[ -n "${CONTAINER_ENGINE:-}" ]]; then
+    command -v "$CONTAINER_ENGINE" >/dev/null 2>&1 \
+      && "$CONTAINER_ENGINE" info >/dev/null 2>&1 || return 1
+    printf '%s\n' "$CONTAINER_ENGINE"
+    return 0
+  fi
+  for engine in docker podman; do
+    if command -v "$engine" >/dev/null 2>&1 \
+        && "$engine" info >/dev/null 2>&1; then
+      printf '%s\n' "$engine"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # Attempt to update ansible_collections; record pass/fail for PR body.
 run_collections_gate() {
-  if ! command -v docker >/dev/null 2>&1 && ! command -v podman >/dev/null 2>&1; then
-    log "WARNING: no container engine (docker/podman) found; skipping collections update"
+  local engine
+  if ! engine=$(select_container_engine); then
+    log "WARNING: no working container engine; skipping collections update"
     _collections_ok=0
     return 0
   fi
-  log "Running make update-collections"
-  if ! make -f openshift/Makefile update-collections; then
+  log "Running make update-collections with ${engine}"
+  if ! make -f openshift/Makefile update-collections CONTAINER_ENGINE="$engine"; then
     log "WARNING: make update-collections failed"
     _collections_ok=0
     return 0
   fi
   if [[ -n "$(git status --porcelain -- openshift/release/ansible/ansible_collections/)" ]]; then
     git add openshift/release/ansible/ansible_collections
-    git commit -m "UPSTREAM: <carry>: Update ansible_collections directory"
+    if ! git diff --cached --quiet -- openshift/release/ansible/ansible_collections/; then
+      git commit -m "UPSTREAM: <carry>: Update ansible_collections directory" -- openshift/release/ansible/ansible_collections/
+    fi
   else
     log "No changed files in ansible_collections directory"
   fi
@@ -292,20 +363,25 @@ run_collections_gate() {
 
 # Attempt to generate downstream requirements files; record pass/fail for PR body.
 run_requirements_gate() {
-  if ! command -v docker >/dev/null 2>&1 && ! command -v podman >/dev/null 2>&1; then
-    log "WARNING: no container engine (docker/podman) found; skipping requirements generation"
+  local engine
+  local -a outputs=(openshift/requirements.txt openshift/requirements-build.txt \
+    openshift/requirements-build1.txt openshift/requirements-pre-build.txt openshift/Pipfile.lock)
+  if ! engine=$(select_container_engine); then
+    log "WARNING: no working container engine; skipping requirements generation"
     _requirements_ok=0
     return 0
   fi
-  log "Running make generate-requirements"
-  if ! make -f openshift/Makefile generate-requirements; then
+  log "Running make generate-requirements with ${engine}"
+  if ! make -f openshift/Makefile generate-requirements CONTAINER_ENGINE="$engine"; then
     log "WARNING: make generate-requirements failed"
     _requirements_ok=0
     return 0
   fi
-  if ! git diff --quiet openshift/; then
-    git add openshift/
-    git commit -m "UPSTREAM: <carry>: Update downstream requirements"
+  if [[ -n "$(git status --porcelain -- "${outputs[@]}")" ]]; then
+    git add -- "${outputs[@]}"
+    if ! git diff --cached --quiet -- "${outputs[@]}"; then
+      git commit -m "UPSTREAM: <carry>: Update downstream requirements" -- "${outputs[@]}"
+    fi
   else
     log "No changed files in openshift directory"
   fi
@@ -314,7 +390,7 @@ run_requirements_gate() {
 # Open a PR (or draft if any gate failed) for the rebase branch.
 create_pr() {
   local tag=$1 branch=$2 old_pin=$3
-  local title body draft_flag=""
+  local title body
   local any_failure=0
 
   [[ "$_collections_ok" == "1" && "$_requirements_ok" == "1" ]] || any_failure=1
@@ -437,7 +513,8 @@ main() {
   trap 'log "FAILED (rc=$?) on branch $(git rev-parse --abbrev-ref HEAD 2>/dev/null)"' ERR
 
   log "Running rebase_upstream.sh ${tag} ${REBASE_BRANCH} ${UPSTREAM_REMOTE}"
-  SKIP_GENERATION=1 ./openshift/hack/rebase_upstream.sh "$tag" "$REBASE_BRANCH" "$UPSTREAM_REMOTE"
+  SKIP_GENERATION=1 ORIGIN_REMOTE="$ORIGIN_REMOTE" \
+    ./openshift/hack/rebase_upstream.sh "$tag" "$REBASE_BRANCH" "$UPSTREAM_REMOTE"
 
   update_golang_builder
 

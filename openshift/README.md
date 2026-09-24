@@ -39,9 +39,11 @@ The workflow:
 3. Update golang builder pins (`.ci-operator.yaml`, `openshift/Dockerfile`) if
    the upstream Go version changed.
 4. Attempt `make -f openshift/Makefile update-collections` and
-   `make -f openshift/Makefile generate-requirements` (requires a container
-   engine; skipped if unavailable).
-5. Push and open a PR. Failed gates = draft PR + non-zero exit (CI goes red).
+   `make -f openshift/Makefile generate-requirements`. The script uses a working
+   Docker or Podman engine, or `CONTAINER_ENGINE` when set. Generated files are
+   replaced only after the container run succeeds.
+5. Push and open a PR. Failed or skipped generation opens a draft PR and
+   returns a non-zero exit status so the periodic reports the needed follow-up.
 
 The bot does **not** auto-merge. A human reviews, verifies collections and
 requirements, requests an ART test build, and merges.
@@ -54,8 +56,9 @@ The periodic uses `openshift-app-platform-shift-bot` via the existing
 
 ### Prerequisites
 
-`git`, `gh` (GitHub CLI), `go`, and optionally `docker` or `podman` (for
-collections and requirements generation).
+`git`, `gh` (GitHub CLI), `go`, and optionally a working `docker` or `podman`
+engine (for collections and requirements generation). `oc` and registry pull
+credentials allow the script to verify new Go builder images on build farms.
 
 ### Dry-run
 
@@ -83,6 +86,7 @@ OVERRIDE_TAG=v1.43.0 DRY_RUN=1 ./hack/auto-rebase.sh
 | `ORIGIN_URL` | `https://github.com/${DEST_ORG_REPO}.git` | URL for the origin remote |
 | `DEST_ORG_REPO` | `openshift/ansible-operator-plugins` | GitHub org/repo for PRs |
 | `GITHUB_TOKEN` | _(required)_ | Token for push + `gh pr create` |
+| `CONTAINER_ENGINE` | auto-detected | Override the engine used for generation |
 | `DRY_RUN` | `0` | Only report what would happen |
 | `FORCE_REMOTE_URLS` | `0` | Allow rewriting a fork's remote URLs |
 | `ALLOW_BRANCH_DELETE` | `0` (auto `1` in CI) | Allow deleting stale local rebase branches |

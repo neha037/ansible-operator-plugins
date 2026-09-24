@@ -12,11 +12,12 @@
 # Origin remote is assumed to point to openshift/ansible-operator-plugins
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 
 version=$1
 rebase_branch=${2:-main}
 upstream_remote=${3:-upstream}
+origin_remote=${ORIGIN_REMOTE:-origin}
 
 # sanity checks
 if [[ -z "$version" ]]; then
@@ -83,8 +84,12 @@ if [[ $differences -eq 1 ]]; then
     [[ -n "$fname" ]] || continue
     sts=$(git status --porcelain -- "$fname" | cut -c1-2)
     case "$sts" in
-      DD|AU|UD|DU)
+      DD|AU|UD)
         git rm -- "$fname"
+        ;;
+      DU)
+        git checkout --theirs -- "$fname"
+        git add -- "$fname"
         ;;
       UA)
         git add -- "$fname"
@@ -119,10 +124,14 @@ if ! git commit -m "Merge upstream tag $version" -m "Ansible Operator Plugins $v
 fi
 
 echo "output the commits pulled from upstream as part of rebase"
-git --no-pager log --oneline "$(git merge-base origin/"$rebase_branch" tags/"$version")"..tags/"$version"
+merge_base=$(git merge-base "$origin_remote/$rebase_branch" "tags/$version") || exit 1
+git --no-pager log --oneline "${merge_base}..tags/$version"
 
 # update vendor directory, abort if there's an error encountered
-go mod tidy && go mod vendor || { echo "go mod vendor failed. Aborting!"; exit 1; }
+if ! go mod tidy || ! go mod vendor; then
+  echo "go mod vendor failed. Aborting!"
+  exit 1
+fi
 # make sure that the vendor directory is actually updated
 if ! git diff --quiet vendor/; then
   git add vendor
