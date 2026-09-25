@@ -488,7 +488,8 @@ merge_conflicts() {
   local tag=$1
   git log -1 --format=%B --fixed-strings --grep="Merge upstream tag ${tag}" \
     | sed -n '/^Overwritten conflicts:$/,$p' \
-    | sed '1d; /^<NONE>$/d; /^$/d'
+    | sed '1d' \
+    | awk 'NF == 0 { exit } $0 != "<NONE>" { print }'
 }
 
 # Open a PR (or draft if any gate failed) for the rebase branch.
