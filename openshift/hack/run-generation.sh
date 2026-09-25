@@ -7,6 +7,10 @@ cd "$repo_root"
 
 kind=${1:?expected collections or requirements}
 engine=${CONTAINER_ENGINE:-docker}
+user_args=(-u "$(id -u):$(id -g)")
+if [[ "$(basename -- "$engine")" == podman && "$(id -u)" != 0 ]]; then
+  user_args=(--userns=keep-id "${user_args[@]}")
+fi
 stage=""
 destination=""
 completed=0
@@ -24,7 +28,7 @@ cleanup() {
         mv -- "$stage/previous" "$destination"
       fi
     else
-      for name in "${installed[@]}"; do
+      for name in ${installed[@]+"${installed[@]}"}; do
         rm -f -- "openshift/$name"
       done
       if [[ -d "$stage/previous" ]]; then
@@ -45,7 +49,7 @@ case "$kind" in
   collections)
     destination=openshift/release/ansible/ansible_collections
     stage=$(mktemp -d openshift/release/ansible/.collections-generation.XXXXXX)
-    "$engine" run -u "$(id -u):$(id -g)" --rm \
+    "$engine" run "${user_args[@]}" --rm \
       -v "$(pwd)/$stage:/tmp/ansible_collections/:Z" \
       "${COLLECTIONS_IMG:-get-collections}"
     [[ -d "$stage/ansible_collections" ]] || { echo "collections output missing" >&2; exit 1; }
@@ -57,7 +61,7 @@ case "$kind" in
     ;;
   requirements)
     stage=$(mktemp -d openshift/.requirements-generation.XXXXXX)
-    "$engine" run -u "$(id -u):$(id -g)" --rm \
+    "$engine" run "${user_args[@]}" --rm \
       -v "$(pwd)/$stage:/tmp/requirements/:Z" \
       "${REQUIREMENTS_IMG:-pip-requirements}"
     outputs=(requirements.txt requirements-build.txt requirements-build1.txt \

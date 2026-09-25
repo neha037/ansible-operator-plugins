@@ -249,10 +249,14 @@ _resolve_builder_ocp() {
       -o jsonpath='{.status.tags[*].tag}' 2>/dev/null) && [[ -n "$all_tags" ]]; then
     if best_ocp=$(_pick_ocp_from_tags "$current_ocp" \
         "rhel-9-release-golang-${new_go}-openshift-" "$all_tags"); then
-      printf '%s\n' "$best_ocp"
-      return 0
+      if _builder_image_exists "$new_go" "$best_ocp"; then
+        printf '%s\n' "$best_ocp"
+        return 0
+      fi
+      log "openshift/release has golang-${new_go}-openshift-${best_ocp}, but ocp/builder image is unavailable"
+    else
+      log "openshift/release has no matching Go tag; trying registry"
     fi
-    log "openshift/release has no matching Go tag; trying registry"
   else
     log "openshift/release unavailable; trying registry"
   fi
