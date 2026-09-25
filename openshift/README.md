@@ -42,8 +42,11 @@ The workflow:
    `make -f openshift/Makefile generate-requirements`. The script uses a working
    Docker or Podman engine, or `CONTAINER_ENGINE` when set. Generated files are
    replaced only after the container run succeeds.
-5. Push and open a PR. Failed or skipped generation opens a draft PR and
-   returns a non-zero exit status so the periodic reports the needed follow-up.
+5. Check that the four generated requirements filenames are referenced by the
+   `openshift-5.1` image config in `openshift-eng/ocp-build-data`.
+6. Push and open a PR. An unresolved builder, failed or skipped generation, or
+   a failed image config check opens a draft PR and returns a non-zero exit
+   status. The PR body names only the checks that need follow-up.
 
 The bot does **not** auto-merge. A human reviews, verifies collections and
 requirements, requests an ART test build, and merges.
@@ -56,9 +59,10 @@ The periodic uses `openshift-app-platform-shift-bot` via the existing
 
 ### Prerequisites
 
-`git`, `gh` (GitHub CLI), `go`, and optionally a working `docker` or `podman`
-engine (for collections and requirements generation). `oc` and registry pull
-credentials allow the script to verify new Go builder images on build farms.
+`git`, `gh` (GitHub CLI), `go`, `python3`, `curl`, and a working `docker` or
+`podman` engine (for collections and requirements generation). The Prow job
+uses Podman with the `nested-podman` capability and registry pull credentials.
+`oc` and those credentials allow the script to verify new Go builder images.
 
 ### Dry-run
 
@@ -103,7 +107,8 @@ Follow the pattern from
 - **Schedule:** `0 6 * * 1` (Mondays 06:00 UTC)
 - **Runs:** `./hack/auto-rebase.sh`
 - **Credentials:** GitHub App `openshift-app-platform-shift-bot`
-- **CI image requirements:** `gh` CLI, `go`, optionally `podman`
+- **CI runner:** built from `src` with Podman and the `nested-podman` capability;
+  `gh` and `oc` are installed in the job
 
 ## Manual rebase
 

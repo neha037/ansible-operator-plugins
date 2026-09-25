@@ -274,18 +274,28 @@ _resolve_builder_ocp() {
   return 1
 }
 
-_builder_todo=""
+_builder_ok=1
+_builder_error=""
 
 # Bump golang builder pins in .ci-operator.yaml and openshift/Dockerfile if needed.
 update_golang_builder() {
   local new_go current_go current_ocp
   new_go=$(awk '/^go /{split($2, a, "."); print a[1]"."a[2]}' go.mod)
-  [[ -n "$new_go" ]] || { log "WARNING: could not parse go version from go.mod"; return 0; }
+  if [[ -z "$new_go" ]]; then
+    _builder_ok=0
+    _builder_error="Could not parse the Go version from go.mod"
+    log "WARNING: ${_builder_error}"
+    return 0
+  fi
 
   current_go=$(sed -n 's/.*golang-\([0-9]*\.[0-9]*\).*/\1/p' .ci-operator.yaml | head -1)
   current_ocp=$(sed -n 's/.*openshift-\([0-9]*\.[0-9]*\).*/\1/p' .ci-operator.yaml | head -1)
-  [[ -n "$current_go" && -n "$current_ocp" ]] \
-    || { log "WARNING: could not parse builder tag from .ci-operator.yaml"; return 0; }
+  if [[ -z "$current_go" || -z "$current_ocp" ]]; then
+    _builder_ok=0
+    _builder_error="Could not parse the builder tag from .ci-operator.yaml"
+    log "WARNING: ${_builder_error}"
+    return 0
+  fi
 
   if [[ "$new_go" == "$current_go" ]]; then
     log "Golang version unchanged (${current_go}); no builder update needed"
@@ -297,7 +307,8 @@ update_golang_builder() {
     log "Verified builder image: golang-${new_go}-openshift-${target_ocp}"
   else
     log "WARNING: no builder image found for golang-${new_go}; skipping builder bump"
-    _builder_todo="Go ${current_go} -> ${new_go} (builder image not found; update \`.ci-operator.yaml\` and \`openshift/Dockerfile\` manually)"
+    _builder_ok=0
+    _builder_error="No verified builder image for Go ${new_go}; update .ci-operator.yaml and openshift/Dockerfile"
     return 0
   fi
 
@@ -321,6 +332,10 @@ update_golang_builder() {
 
 _collections_ok=1
 _requirements_ok=1
+_build_data_ok=1
+_collections_error=""
+_requirements_error=""
+_build_data_error=""
 
 # A binary on PATH is not enough: Docker may have no daemon in the CI pod.
 select_container_engine() {
@@ -347,12 +362,14 @@ run_collections_gate() {
   if ! engine=$(select_container_engine); then
     log "WARNING: no working container engine; skipping collections update"
     _collections_ok=0
+    _collections_error="No working container engine"
     return 0
   fi
   log "Running make update-collections with ${engine}"
   if ! make -f openshift/Makefile update-collections CONTAINER_ENGINE="$engine"; then
     log "WARNING: make update-collections failed"
     _collections_ok=0
+    _collections_error="make update-collections failed"
     return 0
   fi
   if [[ -n "$(git status --porcelain -- openshift/release/ansible/ansible_collections/)" ]]; then
@@ -373,12 +390,14 @@ run_requirements_gate() {
   if ! engine=$(select_container_engine); then
     log "WARNING: no working container engine; skipping requirements generation"
     _requirements_ok=0
+    _requirements_error="No working container engine"
     return 0
   fi
   log "Running make generate-requirements with ${engine}"
   if ! make -f openshift/Makefile generate-requirements CONTAINER_ENGINE="$engine"; then
     log "WARNING: make generate-requirements failed"
     _requirements_ok=0
+    _requirements_error="make generate-requirements failed"
     return 0
   fi
   if [[ -n "$(git status --porcelain -- "${outputs[@]}")" ]]; then
@@ -391,40 +410,109 @@ run_requirements_gate() {
   fi
 }
 
+# Verify that the active downstream image config consumes each generated file.
+check_build_data_requirements() {
+  local config_file url
+  config_file=$(mktemp)
+  url=https://raw.githubusercontent.com/openshift-eng/ocp-build-data/openshift-5.1/images/openshift-enterprise-ansible-operator.yml
+  if ! curl --fail --silent --show-error --location --retry 2 \
+      --connect-timeout 10 --max-time 30 --output "$config_file" "$url"; then
+    _build_data_ok=0
+    _build_data_error="Could not read the openshift-5.1 image config in ocp-build-data"
+  elif ! python3 - "$config_file" <<'PY'
+import re
+import sys
+
+expected = {
+    "requirements_files": {"requirements.txt"},
+    "requirements_build_files": {
+        "requirements-build.txt",
+        "requirements-build1.txt",
+        "requirements-pre-build.txt",
+    },
+}
+found = {key: set() for key in expected}
+active = None
+indent = -1
+with open(sys.argv[1], encoding="utf-8") as config:
+    for line in config:
+        section = re.match(r"^(\s*)(requirements_files|requirements_build_files):\s*$", line)
+        if section:
+            active = section.group(2)
+            indent = len(section.group(1))
+            continue
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if active is not None:
+            if (len(line) - len(line.lstrip()) <= indent
+                    and not line.lstrip().startswith("- ")):
+                active = None
+                continue
+            item = re.match(r"^\s*-\s+([^\s#]+)", line)
+            if item:
+                found[active].add(item.group(1).strip("\"'"))
+
+missing = {key: sorted(values - found[key]) for key, values in expected.items()}
+for key, values in missing.items():
+    if values:
+        print(f"{key} missing: {', '.join(values)}", file=sys.stderr)
+sys.exit(1 if any(missing.values()) else 0)
+PY
+  then
+    _build_data_ok=0
+    _build_data_error="Generated requirements filenames are missing from the openshift-5.1 image config"
+  fi
+  rm -f -- "$config_file"
+  if [[ "$_build_data_ok" == 1 ]]; then
+    log "ocp-build-data references all four generated requirements files"
+  else
+    log "WARNING: ${_build_data_error}"
+  fi
+}
+
+# The upstream merge commit records files that were resolved to upstream.
+merge_conflicts() {
+  local tag=$1
+  git log -1 --format=%B --fixed-strings --grep="Merge upstream tag ${tag}" \
+    | sed -n '/^Overwritten conflicts:$/,$p' \
+    | sed '1d; /^<NONE>$/d; /^$/d'
+}
+
 # Open a PR (or draft if any gate failed) for the rebase branch.
 create_pr() {
   local tag=$1 branch=$2 old_pin=$3
-  local title body
+  local title body conflicts
   local any_failure=0
 
-  [[ "$_collections_ok" == "1" && "$_requirements_ok" == "1" ]] || any_failure=1
+  [[ "$_builder_ok" == 1 && "$_collections_ok" == 1 \
+    && "$_requirements_ok" == 1 && "$_build_data_ok" == 1 ]] || any_failure=1
 
   title="Rebase to ${tag}"
+  conflicts=$(merge_conflicts "$tag")
   body=$(cat <<EOF
 ## Summary
 Automated rebase of downstream Ansible Operator Plugins onto upstream \`${tag}\` via \`./openshift/hack/rebase_upstream.sh\`.
 
 - Previous upstream pin: \`${old_pin}\`
-- Collections update: $([[ "$_collections_ok" == "1" ]] && echo "passed" || echo "**failed or skipped** — manual follow-up needed")
-- Requirements generation: $([[ "$_requirements_ok" == "1" ]] && echo "passed" || echo "**failed or skipped** — manual follow-up needed")
 
-## Manual follow-up
-- Review conflict fallout (script prefers upstream on conflicts).
-- Add any needed \`UPSTREAM: <carry>:\` commits.
-$([[ "$_collections_ok" != "1" ]] && printf '%s\n' "- [ ] **Collections update needed**: Run \`make -f openshift/Makefile update-collections\` and commit the result.")
-$([[ "$_requirements_ok" != "1" ]] && printf '%s\n' "- [ ] **Requirements generation needed**: Run \`make -f openshift/Makefile generate-requirements\` and commit the result. See \`openshift/README.md\` for troubleshooting build dependency conflicts.")
-$([[ -n "$_builder_todo" ]] && printf '%s\n' "- [ ] **Builder image update needed**: ${_builder_todo}")
-- Verify \`openshift/release/ansible/ansible_collections\` is in sync with \`testdata/memcached-molecule-operator/requirements.yml\`.
-- Verify requirements files are referenced in the image build config at \`openshift-eng/ocp-build-data\`.
-- Do **not** auto-merge until CI is green.
-
-## Test plan
-- [ ] CI presubmits pass
-- [ ] \`make -f openshift/Makefile check-collections\`
-- [ ] \`make -f openshift/Makefile check-requirements\`
-- [ ] Request ART test build to verify python build dependencies
+## Automated checks
+- Builder image: $([[ "$_builder_ok" == 1 ]] && echo "verified or unchanged" || echo "failed")
+- Collections update: $([[ "$_collections_ok" == 1 ]] && echo "passed" || echo "failed or skipped")
+- Requirements generation: $([[ "$_requirements_ok" == 1 ]] && echo "passed" || echo "failed or skipped")
+- ocp-build-data requirements references: $(case "$_build_data_ok" in 1) echo passed;; 2) echo skipped;; *) echo failed;; esac)
 EOF
 )
+  if [[ "$any_failure" == 1 ]]; then
+    body+=$'\n\n## Follow-up required'
+    [[ "$_builder_ok" == 1 ]] || body+=$'\n'"- [ ] Builder: ${_builder_error}"
+    [[ "$_collections_ok" == 1 ]] || body+=$'\n'"- [ ] Collections: ${_collections_error}; run \`make -f openshift/Makefile update-collections\` and commit the result."
+    [[ "$_requirements_ok" == 1 ]] || body+=$'\n'"- [ ] Requirements: ${_requirements_error}; run \`make -f openshift/Makefile generate-requirements\` and commit the result."
+    [[ "$_build_data_ok" != 0 ]] || body+=$'\n'"- [ ] Image build config: ${_build_data_error}."
+  fi
+  if [[ -n "$conflicts" ]]; then
+    body+=$'\n\n## Conflicts resolved to upstream\n```text\n'"${conflicts}"$'\n```'
+  fi
+  body+=$'\n\n## Human review\n- Review upstream changes and add any needed `UPSTREAM: <carry>:` commits.\n- Request an ART test build to verify Python build dependencies.'
   if [[ "$any_failure" == "1" ]]; then
     gh pr create --repo "$DEST_ORG_REPO" --base "$REBASE_BRANCH" --head "$branch" \
       --title "WIP: ${title}" --body "$body" --draft \
@@ -524,6 +612,12 @@ main() {
 
   run_collections_gate
   run_requirements_gate
+  if [[ "$_requirements_ok" == 1 ]]; then
+    check_build_data_requirements
+  else
+    _build_data_ok=2
+    _build_data_error="Skipped because requirements generation did not succeed"
+  fi
 
   [[ -n "${GITHUB_TOKEN:-}" ]] || die "GITHUB_TOKEN required to push and open PR"
 
@@ -534,8 +628,9 @@ main() {
   log "Opening pull request"
   create_pr "$tag" "$branch" "$pin"
 
-  if [[ "$_collections_ok" != "1" || "$_requirements_ok" != "1" ]]; then
-    die "One or more gates failed; draft PR opened for manual fixes"
+  if [[ "$_builder_ok" != 1 || "$_collections_ok" != 1 \
+      || "$_requirements_ok" != 1 || "$_build_data_ok" != 1 ]]; then
+    die "One or more gates failed; draft PR opened with the specific failures"
   fi
   log "Auto-rebase complete for ${tag}"
 }
