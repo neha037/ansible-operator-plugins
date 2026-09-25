@@ -298,6 +298,13 @@ update_golang_builder() {
   fi
 
   if [[ "$new_go" == "$current_go" ]]; then
+    if [[ ! -f openshift/Dockerfile ]] \
+        || ! grep -Fq "golang-${current_go}-openshift-${current_ocp}" openshift/Dockerfile; then
+      _builder_ok=0
+      _builder_error="openshift/Dockerfile does not match the configured Go ${current_go} builder"
+      log "WARNING: ${_builder_error}"
+      return 0
+    fi
     log "Golang version unchanged (${current_go}); no builder update needed"
     return 0
   fi
@@ -316,12 +323,18 @@ update_golang_builder() {
   local new_ci_suffix="release-golang-${new_go}-openshift-${target_ocp}"
   local old_builder_suffix="golang-${current_go}-openshift-${current_ocp}"
   local new_builder_suffix="golang-${new_go}-openshift-${target_ocp}"
+  if [[ ! -f openshift/Dockerfile ]] \
+      || ! grep -Fq "$old_ci_suffix" .ci-operator.yaml \
+      || ! grep -Fq "$old_builder_suffix" openshift/Dockerfile; then
+    _builder_ok=0
+    _builder_error="Builder pins in .ci-operator.yaml and openshift/Dockerfile do not match"
+    log "WARNING: ${_builder_error}"
+    return 0
+  fi
   log "Updating golang builder: ${old_builder_suffix} -> ${new_builder_suffix}"
 
   sed -i "s/${old_ci_suffix}/${new_ci_suffix}/" .ci-operator.yaml
-  if [[ -f openshift/Dockerfile ]]; then
-    sed -i "s/${old_builder_suffix}/${new_builder_suffix}/" openshift/Dockerfile
-  fi
+  sed -i "s/${old_builder_suffix}/${new_builder_suffix}/" openshift/Dockerfile
 
   git add .ci-operator.yaml
   git add openshift/Dockerfile 2>/dev/null || true
