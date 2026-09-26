@@ -526,7 +526,7 @@ EOF
   if [[ -n "$conflicts" ]]; then
     body+=$'\n\n## Conflicts resolved to upstream\n```text\n'"${conflicts}"$'\n```'
   fi
-  body+=$'\n\n## Human review\n- Review upstream changes and add any needed `UPSTREAM: <carry>:` commits.\n- Request an ART test build to verify Python build dependencies.'
+  body+=$'\n\n## Human review\n- Review upstream changes and add any needed `UPSTREAM: <carry>:` commits.\n- Review Go dependency vulnerabilities and carry security updates not yet in the upstream tag.\n- Request an ART test build to verify Python build dependencies.'
   if [[ "$any_failure" == "1" ]]; then
     gh pr create --repo "$DEST_ORG_REPO" --base "$REBASE_BRANCH" --head "$branch" \
       --title "WIP: ${title}" --body "$body" --draft \

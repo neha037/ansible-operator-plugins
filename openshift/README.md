@@ -48,8 +48,9 @@ The workflow:
    a failed image config check opens a draft PR and returns a non-zero exit
    status. The PR body names only the checks that need follow-up.
 
-The bot does **not** auto-merge. A human reviews, verifies collections and
-requirements, requests an ART test build, and merges.
+The bot does **not** auto-merge or scan Go dependencies for vulnerabilities. A
+human reviews upstream changes and downstream security carries, verifies
+collections and requirements, requests an ART test build, and merges.
 
 ### Credentials
 
